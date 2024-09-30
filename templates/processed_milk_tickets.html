@@ -1,0 +1,43 @@
+<!-- templates/processed_milk_tickets.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processed Milk Tickets</title>
+</head>
+<body>
+    <h1>Processed Milk Tickets</h1>
+
+    <!-- Display overall milk ticket information -->
+    {% for ticket in tickets %}
+    <h2>Milk Ticket - {{ ticket['producer_name'] }} | Date & Time: {{ ticket['date_and_time'] }}</h2>
+    <p>Commodity: {{ ticket['commodity'] }} | Status: {{ ticket['status'] }}</p>
+
+    <!-- Display farm pickups associated with this ticket -->
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Producer Number</th>
+                <th>Converted Pounds</th>
+                <th>Gauge Rod</th>
+                <th>Temperature</th>
+                <th>Date & Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pickup in ticket['farm_pickups'] %}
+            <tr>
+                <td>{{ pickup['Producer Number'] }}</td>
+                <td>{{ pickup['Converted Pounds'] }}</td>
+                <td>{{ pickup['Gauge Rod'] }}</td>
+                <td>{{ pickup['Temp'] }}</td>
+                <td>{{ pickup['Date & Time'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <br>
+    {% endfor %}
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milk Ticket Form</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Receipt of Producer Milk</h1>
+
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>Unique Form #</label>
+                        {{ form.load_batch_id(class="form-control") }}
+                    </div>
+                    <div class="form-group">
+                        <label>Reporting Handler</label>
+                        {{ form.driver_name(class="form-control") }}
+                    </div>
+                    <div class="form-group">
+                        <label>Reporting Handler Plant Location</label>
+                        {{ form.facility(class="form-control") }}
+                    </div>
+                    <div class="form-group">
+                        <label>Hauler's Signature</label>
+                        {{ form.driver_name(class="form-control") }}
+                    </div>
+                    <div class="form-group">
+                        <label>Lic. No.</label>
+                        {{ form.bulk_sampler_license(class="form-control") }}
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>BTU No.</label>
+                        {{ form.btu_no(class="form-control") }}
+                    </div>
+                    <div class="form-group">
+                        <label>Drug Result</label>
+                        {{ form.antibiotic_test_result(class="form-control") }}
+                    </div>
+                    <div class="form-group">
+                        <label>Receiving Plant</label>
+                        <input type="text" class="form-control" value="Cedar Grove Cheese Inc." readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Receiving Plant Location</label>
+                        <input type="text" class="form-control" value="Plain, WI" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Timestamp</label>
+                        {{ form.timestamp(class="form-control") }}
+                    </div>
+                    <div class="form-group">
+                        <label>Temperature</label>
+                        {{ form.temperature(class="form-control") }}
+                    </div>
+                </div>
+            </div>
+
+            <h4>Farm Pickups</h4>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Producer Number</th>
+                        <th>Converted Pounds</th>
+                        <th>Gauge Rod</th>
+                        <th>Temp</th>
+                        <th>Date & Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pickup in farm_pickups %}
+                    <tr>
+                        <td>{{ pickup.get('Producer Number', 'N/A') }}</td>
+                        <td>{{ pickup.get('Converted Pounds', 'N/A') }}</td>
+                        <td>{{ pickup.get('Gauge Rod', 'N/A') }}</td>
+                        <td>{{ pickup.get('Temp', 'N/A') }}</td>
+                        <td>{{ pickup.get('Date & Time', 'N/A') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+            </table>
+
+            <div class="form-group">
+                <label>Total Converted Pounds</label>
+                <input type="text" class="form-control" value="{{ total_converted_pounds }}" readonly>
+            </div>
+
+            <div class="form-group">
+                <label>Tank Weight & ID</label>
+                <input type="text" class="form-control" value="{{ tank_weight_id }} degrees F" readonly>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Submit Milk Ticket</button>
+
+            {% if previous_ticket %}
+            <a href="{{ url_for('submit_ticket', load_batch_id=previous_ticket.load_batch_id) }}" class="btn btn-secondary">
+                Previous Ticket
+            </a>
+            {% else %}
+            <button class="btn btn-secondary" disabled>Previous Ticket</button>
+            {% endif %}
+
+            {% if next_ticket %}
+            <a href="{{ url_for('submit_ticket', load_batch_id=next_ticket.load_batch_id) }}" class="btn btn-secondary">
+                Next Ticket
+            </a>
+            {% else %}
+            <button class="btn btn-secondary" disabled>Next Ticket</button>
+            {% endif %}
+
+            <a href="{{ url_for('view_tickets') }}" class="btn btn-secondary">View All Tickets</a>
+
+        </form>
+    </div>
+</body>
+</html>

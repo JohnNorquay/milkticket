@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Submitted Milk Tickets</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  </head>
+  <body>
+    <div class="container mt-5">
+      <h1>Submitted Milk Tickets</h1>
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>Load Batch ID</th>
+            <th>Driver Name</th>
+            <th>Facility</th>
+            <th>Weight</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ticket in tickets %}
+          <tr>
+            <td>
+              <a href="{{ url_for('submit_ticket', load_batch_id=ticket.load_batch_id) }}">
+                {{ ticket.load_batch_id }}
+              </a>
+            </td>
+            <td>{{ ticket.driver_name }}</td>
+            <td>{{ ticket.receiving_plant }} {{ ticket.receiving_plant_location }}</td>
+            <td>{{ ticket.total_converted_pounds }}</td>
+            <td>{{ ticket.timestamp }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <a href="{{ url_for('submit_ticket') }}" class="btn btn-primary">Go to Next Milk Ticket Form</a>
+    </div>
+  </body>
+</html>
+
