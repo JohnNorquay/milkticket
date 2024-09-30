@@ -1,7 +1,7 @@
-from flask import render_template, redirect, url_for, flash, request
+from flask import render_template, redirect, url_for, flash, request, session
 from models import MilkTicket
 from db_init import db
-from forms import MilkTicketForm
+from forms import MilkTicketForm, LogoutForm
 from app import app
 from excel_processor import load_excel_data
 from datetime import datetime
@@ -9,30 +9,114 @@ import json
 import pandas as pd
 import logging, math
 
+USERNAME = 'BobWills'
+PASSWORD = 'bobisawesome'
+
 # Setup basic logging configuration
 logging.basicConfig(level=logging.DEBUG)
+
+@app.route('/')
+def home():
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        # Get username and password from form
+        username = request.form['username']
+        password = request.form['password']
+
+        # Check if credentials match
+        if username == USERNAME and password == PASSWORD:
+            session['user'] = username  # Store the username in session
+            flash('Login successful!', 'success')
+            return redirect(url_for('view_tickets'))  # Redirect to the view_tickets page after login
+        else:
+            flash('Invalid credentials. Please try again.', 'danger')
+
+    return render_template('login.html')
+
+# Logout Route
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.pop('user', None)  # Remove the user from session
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/')
+def landing_page():
+    return redirect(url_for('view_tickets'))
+
+
 
 @app.route('/milk_ticket', methods=['GET', 'POST'])
 @app.route('/milk_ticket/<string:load_batch_id>', methods=['GET', 'POST'])
 def submit_ticket(load_batch_id=None):
+    # Ensure user is logged in
+    if 'user' not in session:
+        flash('Please log in to access this page.', 'warning')
+        return redirect(url_for('login'))
+
+    # Create the forms
     form = MilkTicketForm()
+    logout_form = LogoutForm()
 
-    # Fetch the next unprocessed ticket if one isn't provided
-    if load_batch_id is None:
-        # Query the next unprocessed ticket
-        unprocessed_ticket = MilkTicket.query.filter_by(processed=False).first()
-        if unprocessed_ticket is None:
-            flash('All milk tickets have been processed.', 'success')
-            return redirect(url_for('view_tickets'))
-        load_batch_id = unprocessed_ticket.load_batch_id
+    # Get the milk ticket for the provided or next unprocessed load batch ID
+    try:
+        # Get the milk ticket for the provided or next unprocessed load batch ID
+        milk_ticket = get_milk_ticket(load_batch_id)
 
-    # Fetch the current milk ticket
-    milk_ticket = MilkTicket.query.filter_by(load_batch_id=load_batch_id).first()
-    if not milk_ticket:
-        flash('No milk ticket found for the provided load batch ID.', 'error')
+        # Pre-populate the form with the milk ticket data
+        populate_milk_ticket_form(form, milk_ticket)
+
+        # Deserialize farm pickups from JSON to dictionary format
+        farm_pickups = json.loads(milk_ticket.farm_pickups)
+
+        # Get previous and next unprocessed tickets for navigation
+        previous_ticket, next_ticket = get_navigation_tickets(milk_ticket)
+
+        # Handle form submission
+        if form.validate_on_submit():
+            if process_milk_ticket_form(milk_ticket, form):
+                # Redirect to the next unprocessed ticket, or to view tickets if all are processed
+                return redirect_to_next_ticket(next_ticket)
+
+    except ValueError as e:
+        flash(str(e), 'error')
         return redirect(url_for('view_tickets'))
 
-    # Pre-populate the form with the milk ticket data
+    # Render the milk ticket form
+    return render_template('milk_ticket_form.html',
+                           form=form,
+                           farm_pickups=farm_pickups,
+                           total_converted_pounds=milk_ticket.total_converted_pounds,
+                           tank_weight_id=tank_weight_id_from_data(milk_ticket),
+                           previous_ticket=previous_ticket,
+                           next_ticket=next_ticket,
+                           logout_form=logout_form)
+
+
+
+def get_milk_ticket(load_batch_id):
+    """Fetch the milk ticket based on the provided load batch ID or get the next unprocessed ticket."""
+    if not load_batch_id:
+        # Get the next unprocessed ticket
+        unprocessed_ticket = MilkTicket.query.filter_by(processed=False).first()
+        if not unprocessed_ticket:
+            raise ValueError('All milk tickets have been processed.')
+        return unprocessed_ticket
+
+    # Fetch the specific milk ticket by load_batch_id
+    milk_ticket = MilkTicket.query.filter_by(load_batch_id=load_batch_id).first()
+    if not milk_ticket:
+        raise ValueError('No milk ticket found for the provided load batch ID.')
+
+    return milk_ticket
+
+
+
+def populate_milk_ticket_form(form, milk_ticket):
+    """Populate the form fields with the milk ticket data."""
     form.load_batch_id.data = milk_ticket.load_batch_id
     form.driver_name.data = milk_ticket.driver_name
     form.facility.data = milk_ticket.facility
@@ -42,50 +126,49 @@ def submit_ticket(load_batch_id=None):
     form.timestamp.data = milk_ticket.timestamp
     form.temperature.data = milk_ticket.temperature
 
-    # Deserialize farm pickups from JSON to dictionary format
-    farm_pickups = json.loads(milk_ticket.farm_pickups)
 
-    # Get previous and next unprocessed tickets for navigation
-    previous_ticket = MilkTicket.query.filter(MilkTicket.processed == False,
-                                              MilkTicket.id < milk_ticket.id).order_by(MilkTicket.id.desc()).first()
-    next_ticket = MilkTicket.query.filter(MilkTicket.processed == False,
-                                          MilkTicket.id > milk_ticket.id).order_by(MilkTicket.id.asc()).first()
+def get_navigation_tickets(milk_ticket):
+    """Get the previous and next unprocessed tickets for navigation."""
+    previous_ticket = (MilkTicket.query.filter(MilkTicket.processed == False,
+                                               MilkTicket.id < milk_ticket.id)
+                       .order_by(MilkTicket.id.desc()).first())
 
-    if form.validate_on_submit():
-        try:
-            # Update milk ticket fields
-            milk_ticket.driver_name = form.driver_name.data
-            milk_ticket.facility = form.facility.data
-            milk_ticket.bulk_sampler_license = form.bulk_sampler_license.data
-            milk_ticket.btu_no = form.btu_no.data
-            milk_ticket.antibiotic_test_result = form.antibiotic_test_result.data
-            milk_ticket.timestamp = form.timestamp.data
-            milk_ticket.temperature = form.temperature.data
+    next_ticket = (MilkTicket.query.filter(MilkTicket.processed == False,
+                                           MilkTicket.id > milk_ticket.id)
+                   .order_by(MilkTicket.id.asc()).first())
+    return previous_ticket, next_ticket
 
-            # Mark the ticket as processed
-            milk_ticket.processed = True
 
-            # Save to database
-            db.session.commit()
-            flash('Milk ticket submitted successfully', 'success')
+def process_milk_ticket_form(milk_ticket, form):
+    """Process the submitted form and update the milk ticket."""
+    try:
+        milk_ticket.driver_name = form.driver_name.data
+        milk_ticket.facility = form.facility.data
+        milk_ticket.bulk_sampler_license = form.bulk_sampler_license.data
+        milk_ticket.btu_no = form.btu_no.data
+        milk_ticket.antibiotic_test_result = form.antibiotic_test_result.data
+        milk_ticket.timestamp = form.timestamp.data
+        milk_ticket.temperature = form.temperature.data
+        milk_ticket.processed = True  # Mark as processed
 
-            # Redirect to the next unprocessed ticket
-            if next_ticket:
-                return redirect(url_for('submit_ticket', load_batch_id=next_ticket.load_batch_id))
-            else:
-                flash('All tickets have been processed.', 'success')
-                return redirect(url_for('view_tickets'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'There was an error submitting the form. Error: {str(e)}', 'error')
+        # Save changes to the database
+        db.session.commit()
+        flash('Milk ticket submitted successfully', 'success')
+        return True
+    except Exception as e:
+        db.session.rollback()
+        flash(f'There was an error submitting the form. Error: {str(e)}', 'error')
+        return False
 
-    return render_template('milk_ticket_form.html',
-                           form=form,
-                           farm_pickups=farm_pickups,
-                           total_converted_pounds=milk_ticket.total_converted_pounds,
-                           tank_weight_id=tank_weight_id_from_data(milk_ticket),
-                           previous_ticket=previous_ticket,
-                           next_ticket=next_ticket)
+
+def redirect_to_next_ticket(next_ticket):
+    """Redirect to the next unprocessed ticket or to the view tickets page."""
+    if next_ticket:
+        return redirect(url_for('submit_ticket', load_batch_id=next_ticket.load_batch_id))
+    else:
+        flash('All tickets have been processed.', 'success')
+        return redirect(url_for('view_tickets'))
+
 
 def tank_weight_id_from_data(milk_ticket):
     if milk_ticket is None:
@@ -97,9 +180,18 @@ def tank_weight_id_from_data(milk_ticket):
 
 @app.route('/view_tickets')
 def view_tickets():
+    if 'user' not in session:  # Check if user is logged in
+        flash('Please log in to access this page.', 'warning')
+        return redirect(url_for('login'))
+
+    # Create an instance of LogoutForm
+    logout_form = LogoutForm()
+
     # Fetch all tickets from the database
     tickets = MilkTicket.query.all()
-    return render_template('view_tickets.html', tickets=tickets)
+
+    # Pass logout_form to the template
+    return render_template('view_tickets.html', tickets=tickets, logout_form=logout_form)
 
 
 # Function to process milk tickets from the Excel spreadsheet

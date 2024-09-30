@@ -12,3 +12,6 @@ class MilkTicketForm(FlaskForm):
     temperature = FloatField('Temperature')
     timestamp = DateTimeField('Timestamp', format='%Y-%m-%d %H:%M:%S', validators=[DataRequired()])
     submit = SubmitField('Submit')
+
+class LogoutForm(FlaskForm):
+    submit = SubmitField('Logout')

@@ -5,15 +5,74 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Milk Ticket Form</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+
+    <!-- Print-specific styles -->
+    <style>
+        @media print {
+            /* Set two-column layout for print */
+            .row {
+                display: flex;
+                flex-wrap: nowrap;
+            }
+
+            .col-md-6 {
+                flex: 0 0 50%; /* Make each column take up half of the page width */
+                max-width: 50%;
+            }
+
+            /* Reduce padding and margins for a more compact view */
+            .container {
+                margin: 0;
+                padding: 0;
+            }
+
+            .form-group {
+                margin: 5px 0;
+            }
+
+            h1, h4 {
+                font-size: 16px; /* Smaller headers */
+                text-align: center;
+            }
+
+            table {
+                font-size: 12px; /* Smaller table font size */
+            }
+
+            /* Hide buttons and other elements that should not appear in the print version */
+            .btn,
+            .logout-button,
+            .navigation-buttons {
+                display: none !important;
+            }
+        }
+    </style>
+
+    <!-- JavaScript to handle printing functionality -->
+    <script>
+        function printTicket() {
+            // Hide specific elements before printing (e.g., buttons)
+            let buttons = document.querySelectorAll('.btn');
+            buttons.forEach(button => button.style.display = 'none');
+
+            // Print the document
+            window.print();
+
+            // Restore button visibility after printing
+            buttons.forEach(button => button.style.display = 'inline-block');
+        }
+    </script>
 </head>
 <body>
     <div class="container mt-5">
         <h1>Receipt of Producer Milk</h1>
 
+        <!-- Main Milk Ticket Form -->
         <form method="POST">
-            {{ form.hidden_tag() }}
+            {{ form.hidden_tag() }}  <!-- This includes the CSRF token for the main form -->
 
             <div class="row">
+                <!-- Left Column -->
                 <div class="col-md-6">
                     <div class="form-group">
                         <label>Unique Form #</label>
@@ -37,6 +96,7 @@
                     </div>
                 </div>
 
+                <!-- Right Column -->
                 <div class="col-md-6">
                     <div class="form-group">
                         <label>BTU No.</label>
@@ -65,6 +125,7 @@
                 </div>
             </div>
 
+            <!-- Farm Pickups Section -->
             <h4>Farm Pickups</h4>
             <table class="table table-bordered">
                 <thead>
@@ -87,7 +148,6 @@
                     </tr>
                     {% endfor %}
                 </tbody>
-
             </table>
 
             <div class="form-group">
@@ -100,27 +160,40 @@
                 <input type="text" class="form-control" value="{{ tank_weight_id }} degrees F" readonly>
             </div>
 
+            <!-- Submit Button for Milk Ticket -->
             <button type="submit" class="btn btn-primary">Submit Milk Ticket</button>
+        </form>
 
+        <!-- Navigation Buttons for Previous and Next Tickets -->
+        <div class="form-group mt-3 navigation-buttons">
             {% if previous_ticket %}
-            <a href="{{ url_for('submit_ticket', load_batch_id=previous_ticket.load_batch_id) }}" class="btn btn-secondary">
+            <a href="{{ url_for('submit_ticket', load_batch_id=previous_ticket.load_batch_id) }}" class="btn btn-secondary" title="Go to Previous Ticket">
                 Previous Ticket
             </a>
             {% else %}
-            <button class="btn btn-secondary" disabled>Previous Ticket</button>
+            <button class="btn btn-secondary" disabled title="No Previous Ticket Available">Previous Ticket</button>
             {% endif %}
 
             {% if next_ticket %}
-            <a href="{{ url_for('submit_ticket', load_batch_id=next_ticket.load_batch_id) }}" class="btn btn-secondary">
+            <a href="{{ url_for('submit_ticket', load_batch_id=next_ticket.load_batch_id) }}" class="btn btn-secondary" title="Go to Next Ticket">
                 Next Ticket
             </a>
             {% else %}
-            <button class="btn btn-secondary" disabled>Next Ticket</button>
+            <button class="btn btn-secondary" disabled title="No Next Ticket Available">Next Ticket</button>
             {% endif %}
 
-            <a href="{{ url_for('view_tickets') }}" class="btn btn-secondary">View All Tickets</a>
+            <!-- View All Tickets Button -->
+            <a href="{{ url_for('view_tickets') }}" class="btn btn-secondary" title="View all tickets in the system">View All Tickets</a>
 
-        </form>
+            <!-- Separate Logout Form -->
+            <form action="{{ url_for('logout') }}" method="POST" style="display: inline;">
+                {{ logout_form.hidden_tag() }}  <!-- Use the hidden_tag() from the LogoutForm -->
+                <button type="submit" class="btn btn-danger" title="Log out from the application">Logout</button>
+            </form>
+
+            <!-- Print Button -->
+            <button onclick="printTicket()" class="btn btn-info mt-3" title="Print this milk ticket">Print Ticket</button>
+        </div>
     </div>
 </body>
 </html>
